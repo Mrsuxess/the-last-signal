@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <title>THE LAST SIGNAL // NEXUS-09</title>
+    <script type="module" crossorigin src="./assets/index-CRW6v3Jf.js"></script>
+    <link rel="modulepreload" crossorigin href="./assets/three-DX5v8HQE.js">
+    <link rel="stylesheet" crossorigin href="./assets/index-0ftSsY9f.css">
+  </head>
+  <body class="subtitle-medium">
+    <div id="game-container">
+      <canvas id="game-canvas"></canvas>
+
+      <!-- CRT & Atmospheric Overlays -->
+      <div id="crt-overlay" class="crt-enabled"></div>
+      <div id="vignette-overlay"></div>
+      <div id="locker-overlay" class="hidden"></div>
+      <div id="damage-overlay"></div>
+      <div id="arc-flash-overlay"></div>
+      <div id="static-overlay"></div>
+
+      <!-- Portrait Mobile Advisory Overlay -->
+      <div id="portrait-warning" class="modal-screen hidden">
+        <div class="menu-container portrait-box">
+          <div class="station-tag">VIEWPORT ORIENTATION ADVISORY</div>
+          <h2 class="section-title">THIS STATION REQUIRES A WIDER VIEW.</h2>
+          <p class="portrait-desc">Rotate your device for the best experience.</p>
+          <div class="menu-buttons">
+            <button id="btn-dismiss-portrait" class="retro-btn primary-btn">CONTINUE ANYWAY</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- WebGL Compatibility Fallback -->
+      <div id="webgl-fallback" class="modal-screen hidden">
+        <div class="menu-container">
+          <div class="station-tag danger-text">HARDWARE DIAGNOSTIC // RENDERER OFFLINE</div>
+          <h2 class="section-title danger-text">WEBGL ACCELERATION REQUIRED</h2>
+          <p class="portrait-desc">
+            Your browser or device currently has WebGL 3D hardware acceleration disabled or unsupported.
+            Please enable hardware acceleration in your browser settings or switch to a modern desktop/mobile browser.
+          </p>
+        </div>
+      </div>
+
+      <!-- Ending Cinematic Overlay -->
+      <div id="cinematic-overlay" class="hidden">
+        <div class="cinematic-letterbox top-bar"></div>
+        <div class="cinematic-caption" id="cinematic-caption"></div>
+        <div class="cinematic-letterbox bottom-bar"></div>
+      </div>
+
+      <!-- HUD -->
+      <div id="hud" class="hidden">
+        <!-- Pointer Lock Status Hint (Desktop only) -->
+        <div id="pointer-lock-banner" class="hidden">
+          CLICK VIEWPORT FOR MOUSE LOOK // WASD + [E] INTERACT + [R] ARC PULSE ACTIVE
+        </div>
+
+        <!-- Top Center: Tactical Compass & Objective Direction Strip -->
+        <div id="hud-compass-bar" class="hud-compass-bar">
+          <span class="compass-cardinal" id="compass-heading">N 000°</span>
+          <span class="compass-obj-bearing" id="compass-bearing-indicator">▲ AIRLOCK A-01 (4.0m)</span>
+          <span class="compass-step-badge" id="hud-step-badge">STEP 1/8</span>
+        </div>
+
+        <!-- Top Left: NEXUS-09 // MISSION STATUS Tracker -->
+        <div class="hud-panel top-left" id="mission-tracker-panel">
+          <div class="telemetry-header">
+            <span class="tracker-title-group"><span class="blink-dot"></span><span class="tracker-title-text">MISSION TRACKER</span></span>
+            <div class="tracker-header-controls">
+              <span id="hud-power-state" class="power-aux">PWR: RESERVE</span>
+              <button id="btn-toggle-mission-details" class="hud-expand-btn" type="button" aria-expanded="false">DETAILS ▾</button>
+            </div>
+          </div>
+          <div class="mission-status-grid">
+            <div class="status-field compact-primary-row">
+              <span class="field-label">OBJECTIVE (WHAT):</span>
+              <span class="field-value primary-val" id="hud-primary-objective">MISSION 01: THE ARRIVAL — Exit the Airlock</span>
+            </div>
+            <div class="status-field compact-task-row">
+              <span class="field-label">ACTION:</span>
+              <span class="field-value task-val" id="hud-objective">Interact with the Airlock Control Panel to open Bulkhead A-01.</span>
+            </div>
+            <div id="mission-details-drawer" class="mission-details-drawer">
+              <div class="status-field">
+                <span class="field-label">DIRECTION (WHERE):</span>
+                <span class="field-value dir-val" id="hud-direction">Approach the green-lit Airlock Control Panel beside the northern bulkhead door.</span>
+              </div>
+              <div class="status-field">
+                <span class="field-label">PURPOSE (WHY):</span>
+                <span class="field-value why-val" id="hud-why">Enter the Central Spine Corridor to begin station reconnaissance.</span>
+              </div>
+              <div class="status-field location-row">
+                <span class="field-label">SECTOR:</span>
+                <span class="field-value loc-val" id="hud-location">SECTOR A-01</span>
+              </div>
+              <div class="tracker-footer">
+                <button id="btn-hud-card" class="hud-mini-btn" type="button">DIRECTIVE CARD</button>
+                <button id="btn-hud-journal" class="hud-mini-btn" type="button">[J] MISSION JOURNAL</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Animated Objective Update Notification -->
+        <div id="objective-update-banner" class="hidden">
+          <div class="obj-banner-tag" id="objective-update-tag">DIRECTIVE UPDATED</div>
+          <div class="obj-banner-text" id="objective-update-text">Locate the Security Hub.</div>
+        </div>
+
+        <!-- Progressive Interactive Tutorial Banner (Optional / Immediately Dismissible) -->
+        <div id="tutorial-banner" class="hidden">
+          <div class="tutorial-header">
+            <span class="tutorial-tag">SUIT ONBOARDING // TRAINING MODULE</span>
+            <div class="tutorial-actions">
+              <button id="btn-dismiss-tutorial" class="hud-mini-btn" type="button">DISMISS ✕</button>
+              <button id="btn-skip-tutorials" class="hud-mini-btn" type="button">SKIP ALL</button>
+            </div>
+          </div>
+          <div class="tutorial-headline" id="tutorial-headline">Move through the airlock.</div>
+          <div class="tutorial-body" id="tutorial-body">Use [W][A][S][D] to walk and move your MOUSE to look around.</div>
+        </div>
+
+        <!-- Top Right: Handheld Signal Scanner -->
+        <div class="hud-panel top-right" id="scanner-panel">
+          <div class="scanner-header">
+            <span>SIGNAL SCANNER [Q]</span>
+            <span id="scanner-status" class="status-on">ONLINE</span>
+          </div>
+          <div class="scanner-display">
+            <canvas id="scanner-canvas" width="180" height="96"></canvas>
+            <div class="scanner-readout">
+              <div class="scanner-row"><span>BEACON:</span> <strong id="scanner-target">AIRLOCK A-01</strong></div>
+              <div class="scanner-row"><span>RANGE:</span> <strong id="scanner-dist">--.- m</strong></div>
+              <div class="scanner-row"><span>EMI FIELD:</span> <strong id="scanner-emi">NOMINAL</strong></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Center Reticle & Contextual Prompts -->
+        <div id="center-reticle">
+          <div class="reticle-ring" id="reticle-ring">
+            <div class="reticle-dot" id="reticle-dot"></div>
+          </div>
+          <div id="interaction-prompt" class="hidden">
+            <span class="key-badge" id="prompt-key-badge">E</span>
+            <span id="interaction-text">INTERACT</span>
+          </div>
+          <div id="hiding-indicator" class="hidden">
+            CONCEALED IN EMERGENCY LOCKER — PRESS [E] / INTERACT TO EXIT
+          </div>
+        </div>
+
+        <!-- Visual Audio & Accessibility Warning Indicator -->
+        <div id="visual-audio-cue" class="hidden"></div>
+
+        <!-- ECHO Transmission Box (Subtitles + Optional Dismiss) -->
+        <div id="echo-transmission" class="hidden">
+          <div class="echo-header">
+            <span class="echo-title" id="echo-sender">ECHO // AI CORE v9.4</span>
+            <div class="echo-header-right">
+              <div class="echo-waveform" id="echo-waveform">
+                <span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+              </div>
+              <button id="btn-dismiss-echo" class="hud-mini-btn echo-dismiss-btn" type="button" title="Dismiss transmission">✕</button>
+            </div>
+          </div>
+          <div class="echo-body" id="echo-text"></div>
+        </div>
+
+        <!-- Bottom Left: Vitals (Oxygen, Acoustic Signature, Clearance) -->
+        <div class="hud-panel bottom-left" id="vitals-panel">
+          <div class="bar-group">
+            <div class="bar-label">
+              <span>O2 RESERVE</span>
+              <span id="o2-value">100%</span>
+            </div>
+            <div class="bar-track">
+              <div class="bar-fill o2-fill" id="o2-bar" style="width: 100%"></div>
+            </div>
+          </div>
+          <div class="bar-group">
+            <div class="bar-label">
+              <span>ACOUSTIC SIGNATURE</span>
+              <span id="noise-state">STEALTH</span>
+            </div>
+            <div class="bar-track">
+              <div class="bar-fill noise-fill" id="noise-bar" style="width: 10%"></div>
+            </div>
+          </div>
+          <div class="keycard-inventory" id="hud-inventory">
+            <span class="inv-label">CLEARANCE:</span>
+            <span class="inv-badge" id="inv-none">NONE</span>
+          </div>
+        </div>
+
+        <!-- Bottom Right: ARC PULSE Defense, Flashlight & Controls Hint -->
+        <div class="hud-panel bottom-right" id="torch-panel">
+          <div class="bar-group">
+            <div class="bar-label">
+              <span id="arc-hud-label">ARC PULSE [R]</span>
+              <span id="arc-value">2/3 CHARGES</span>
+            </div>
+            <div class="bar-track">
+              <div class="bar-fill arc-fill" id="arc-bar" style="width: 67%"></div>
+            </div>
+          </div>
+          <div class="bar-group">
+            <div class="bar-label">
+              <span>SUIT TORCH [F]</span>
+              <span id="battery-value">100%</span>
+            </div>
+            <div class="bar-track">
+              <div class="bar-fill battery-fill" id="battery-bar" style="width: 100%"></div>
+            </div>
+          </div>
+          <div class="stance-readout">
+            <span>STANCE: <strong id="hud-stance">STANDING</strong></span>
+            <span>LOGS: <strong id="hud-logs">0/2</strong></span>
+          </div>
+          <div class="controls-mini" id="desktop-controls-hint">
+            <span>[WASD] Move</span>
+            <span>[R] Arc Pulse</span>
+            <span>[F] Torch</span>
+            <span>[Q] Ping</span>
+            <span>[C] Crouch</span>
+            <span>[J] Journal</span>
+          </div>
+        </div>
+
+        <!-- Notification Toast -->
+        <div id="hud-toast" class="hidden"></div>
+
+        <!-- Virtual Touchscreen Controls (Mobile / Tablet) -->
+        <div id="touch-controls" class="hidden">
+          <!-- Top Mobile Utility Buttons -->
+          <div class="touch-top-bar">
+            <button id="btn-touch-journal" class="touch-btn util-touch-btn" type="button">📋 LOGS</button>
+            <button id="btn-touch-pause" class="touch-btn util-touch-btn" type="button">⏸ PAUSE</button>
+          </div>
+
+          <!-- Left Side: Floating Movement Joystick Zone -->
+          <div id="touch-joystick-zone">
+            <div id="touch-joystick-base">
+              <div id="touch-joystick-knob"></div>
+            </div>
+            <div class="touch-zone-label">MOVE</div>
+          </div>
+
+          <!-- Right Side: Camera Look Zone -->
+          <div id="touch-look-zone">
+            <div class="touch-zone-label">SWIPE TO LOOK</div>
+          </div>
+
+          <!-- Right Side Action Cluster (3x2 Grid, >= 44x44px targets) -->
+          <div class="touch-action-cluster">
+            <button id="btn-touch-interact" class="touch-btn primary-touch-btn" type="button">[ INTERACT ]</button>
+            <button id="btn-touch-pulse" class="touch-btn pulse-touch-btn" type="button">⚡ PULSE (2)</button>
+            <button id="btn-touch-flashlight" class="touch-btn" type="button">🔦 TORCH</button>
+            <button id="btn-touch-scan" class="touch-btn" type="button">📡 SCAN</button>
+            <button id="btn-touch-sprint" class="touch-btn" type="button">🏃 SPRINT</button>
+            <button id="btn-touch-crouch" class="touch-btn" type="button">🔉 CROUCH</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Essential Instruction Card Modal (Pauses Gameplay Until Acknowledged) -->
+      <div id="instruction-card-modal" class="modal-screen hidden">
+        <div class="menu-container instruction-card-container">
+          <div class="station-tag">
+            <span id="instruction-card-tag">MISSION UPDATE</span>
+            <span class="blink-dot"></span>
+          </div>
+          <h2 class="section-title" id="instruction-card-title">RESTORE AUXILIARY POWER</h2>
+          <div class="instruction-card-grid">
+            <div class="instruction-card-row">
+              <span class="instruction-row-label">WHAT:</span>
+              <span class="instruction-row-val" id="instruction-card-what">Locate the station's auxiliary generator.</span>
+            </div>
+            <div class="instruction-card-row">
+              <span class="instruction-row-label">WHERE:</span>
+              <span class="instruction-row-val" id="instruction-card-where">Generator Room — Engineering Sector (Sector D-04 West).</span>
+            </div>
+            <div class="instruction-card-row">
+              <span class="instruction-row-label">WHY:</span>
+              <span class="instruction-row-val" id="instruction-card-why">Without power, the station's communication systems cannot function.</span>
+            </div>
+            <div class="instruction-card-row">
+              <span class="instruction-row-label">CONTROL:</span>
+              <span class="instruction-row-val" id="instruction-card-control">Press E or tap INTERACT to use the generator.</span>
+            </div>
+          </div>
+          <div class="menu-buttons" style="margin-top: 18px;">
+            <button id="btn-instruction-continue" class="retro-btn primary-btn dominant-start-btn" type="button">CONTINUE</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Terminal / Audio Log Overlay Modal -->
+      <div id="terminal-modal" class="modal-screen hidden">
+        <div class="terminal-window">
+          <div class="terminal-topbar">
+            <span id="terminal-title">NEXUS-09 TERMINAL // OS v4.12</span>
+            <button id="terminal-close-btn" class="retro-btn small-btn">[ESC / E] CLOSE</button>
+          </div>
+          <div class="terminal-content" id="terminal-body"></div>
+          <div class="terminal-actions" id="terminal-actions"></div>
+        </div>
+      </div>
+
+      <!-- Mission Journal Modal -->
+      <div id="journal-modal" class="modal-screen hidden">
+        <div class="terminal-window journal-window">
+          <div class="terminal-topbar">
+            <span>NEXUS-09 // ENGINEER MISSION JOURNAL</span>
+            <button id="btn-close-journal" class="retro-btn small-btn">[ESC / J] CLOSE</button>
+          </div>
+          <div class="journal-grid">
+            <div class="journal-section">
+              <h3 class="journal-heading">ACTIVE DIRECTIVES</h3>
+              <div class="journal-card">
+                <div><strong>OBJECTIVE (WHAT):</strong> <span id="journal-primary-text">Exit the Airlock.</span></div>
+                <div style="margin-top:6px;"><strong>ACTION:</strong> <span id="journal-task-text">Open Airlock Bulkhead A-01.</span></div>
+                <div style="margin-top:6px;"><strong>DIRECTION (WHERE):</strong> <span id="journal-direction-text">Approach the Airlock Control Panel ahead.</span></div>
+                <div style="margin-top:6px;"><strong>CONTEXT (WHY):</strong> <span id="journal-why-text">Enter the Central Spine Corridor to begin reconnaissance.</span></div>
+              </div>
+              <h3 class="journal-heading" style="margin-top:14px;">COMPLETED MILESTONES</h3>
+              <ul id="journal-completed-list" class="journal-list"></ul>
+              <h3 class="journal-heading" style="margin-top:14px;">SECURITY CLEARANCE &amp; KEYCARDS</h3>
+              <div id="journal-keycards-list" class="journal-card">None acquired.</div>
+            </div>
+            <div class="journal-section">
+              <h3 class="journal-heading">INSTRUCTION CARDS &amp; FIELD MANUAL</h3>
+              <div id="journal-instructions-list" class="journal-logs-container" style="margin-bottom:14px;"></div>
+              <h3 class="journal-heading">RECOVERED RECORDINGS &amp; LOGS</h3>
+              <div id="journal-logs-list" class="journal-logs-container">
+                <p class="muted-note">No crew recordings or terminal logs archived yet.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- How To Play / Controls Reference Modal -->
+      <div id="howtoplay-modal" class="modal-screen hidden">
+        <div class="menu-container howto-container">
+          <div class="station-tag">RECONNAISSANCE ENGINEER HANDBOOK // NEXUS-09</div>
+          <h2 class="section-title">HOW TO PLAY &amp; CONTROLS</h2>
+          <div class="howto-grid">
+            <div class="howto-col">
+              <h4>DESKTOP / LAPTOP</h4>
+              <ul>
+                <li><strong>W, A, S, D:</strong> Move through station sectors</li>
+                <li><strong>Mouse / Trackpad:</strong> Look around (Click viewport or drag)</li>
+                <li><strong>E:</strong> Interact with doors, keycards, terminals &amp; lockers</li>
+                <li><strong>R / Right-Click:</strong> Discharge <strong>ARC PULSE</strong> (stuns creature; 3 hits permanently defeat it)</li>
+                <li><strong>F:</strong> Toggle Suit Flashlight (conserve battery)</li>
+                <li><strong>Q:</strong> Ping Handheld Signal Scanner</li>
+                <li><strong>C / Ctrl:</strong> Toggle Crouch (quiet movement)</li>
+                <li><strong>Shift:</strong> Sprint (Warning: loud acoustic signature!)</li>
+                <li><strong>J:</strong> Open Mission Journal &amp; Instructions</li>
+                <li><strong>ESC:</strong> Pause / System Menu</li>
+              </ul>
+            </div>
+            <div class="howto-col">
+              <h4>MOBILE / TABLET &amp; SURVIVAL</h4>
+              <ul>
+                <li><strong>Left Joystick:</strong> Drag anywhere on left side to walk</li>
+                <li><strong>Right Viewport:</strong> Swipe on right side to aim camera</li>
+                <li><strong>Action Cluster:</strong> Tap <em>INTERACT, ⚡ PULSE, TORCH, SCAN, SPRINT, CROUCH</em></li>
+                <li><strong>ARC PULSE Defense:</strong> Tap <em>⚡ PULSE</em> when the entity is within 7.5m to stun it. Three hits neutralize it permanently!</li>
+                <li><strong>Acoustic Stealth:</strong> Crouch-walk and hide inside green-lit Emergency Lockers when EMI spikes!</li>
+                <li><strong>Oxygen &amp; Battery:</strong> Collect blue O2 canisters and amber battery cells to recharge torch &amp; Arc capacitors</li>
+              </ul>
+            </div>
+          </div>
+          <div class="menu-buttons" style="margin-top: 18px;">
+            <button id="btn-close-howto" class="retro-btn primary-btn">RETURN</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- SCREEN 1: Main Menu -->
+      <div id="main-menu" class="modal-screen menu-backdrop">
+        <div class="menu-bg-grid"></div>
+        <div class="menu-container">
+          <div class="menu-top-meta">
+            <span>DEEP SPACE RESEARCH STATION // NEXUS-09</span>
+            <span>CARRIER: 1420.405 MHz</span>
+          </div>
+          <h1 class="game-title">THE LAST SIGNAL</h1>
+          <div class="station-sub-banner">NEXUS-09</div>
+          <p class="game-tagline">
+            Seventy-two hours after deep-space station NEXUS-09 went dark, its AI is still broadcasting—and something inside is listening.
+          </p>
+
+          <div class="menu-buttons">
+            <button id="btn-start-game" class="retro-btn primary-btn dominant-start-btn">START MISSION</button>
+            <button id="btn-continue-game" class="retro-btn continue-btn hidden">CONTINUE SAVED MISSION</button>
+            <div class="menu-secondary-row">
+              <button id="btn-how-to-play" class="retro-btn">HOW TO PLAY</button>
+              <button id="btn-open-settings" class="retro-btn">SETTINGS</button>
+            </div>
+          </div>
+
+          <div class="menu-footer">
+            <span>HEADPHONES RECOMMENDED</span>
+            <span>//</span>
+            <span>DESKTOP &bull; LAPTOP &bull; TABLET &bull; MOBILE</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- SCREEN 1.5: Player Identity Verification Screen (Shown before Mission Briefing) -->
+      <div id="identity-screen" class="modal-screen hidden">
+        <div class="menu-container identity-container">
+          <div class="menu-top-meta">
+            <span>THE LAST SIGNAL // UPLINK AUTHENTICATION</span>
+            <span class="blink-dot"></span>
+          </div>
+          <h2 class="section-title">NEXUS-09 PERSONNEL IDENTIFICATION</h2>
+          <p class="identity-lead">"Before we establish your connection, identify yourself."</p>
+
+          <div class="identity-form-group">
+            <label for="player-name-input" class="identity-label">CALLSIGN / NAME</label>
+            <input
+              type="text"
+              id="player-name-input"
+              class="retro-input"
+              placeholder="Enter your name..."
+              maxlength="24"
+              autocomplete="off"
+              spellcheck="false"
+            />
+            <div id="identity-error" class="identity-error hidden">
+              PERSONNEL IDENTIFICATION REQUIRED — PLEASE ENTER A VALID CALLSIGN OR NAME.
+            </div>
+          </div>
+          <div class="identity-form-group" style="margin-top:12px;">
+            <label for="difficulty-select" class="identity-label">MISSION PROTOCOL // DIFFICULTY</label>
+            <select id="difficulty-select" class="retro-select" style="width:100%;">
+              <option value="explorer">EXPLORER (FORGIVING // HIGH O2 &amp; DEFENSE)</option>
+              <option value="survivor" selected>SURVIVOR (BALANCED // INTENDED HORROR)</option>
+              <option value="nightmare">NIGHTMARE (CRITICAL // LETHAL THREATS &amp; SCARCE SUPPLIES)</option>
+            </select>
+          </div>
+
+          <div class="menu-buttons">
+            <button id="btn-confirm-identity" class="retro-btn primary-btn dominant-start-btn" type="button">CONFIRM IDENTITY</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- SCREEN 2: Mission Briefing -->
+      <div id="briefing-screen" class="modal-screen hidden">
+        <div class="menu-container briefing-container">
+          <div class="menu-top-meta">
+            <span>PRIORITY TRANSMISSION // RECON SHUTTLE CASSINI-4</span>
+            <span class="blink-dot"></span>
+          </div>
+          <h2 class="section-title">MISSION BRIEFING // NEXUS-09</h2>
+
+          <div class="briefing-transmission-box">
+            <p class="briefing-lead">NEXUS-09 HAS BEEN SILENT FOR 72 HOURS.</p>
+            <p id="briefing-personal-greeting">Welcome aboard, Engineer. All communication with the research crew has ceased.</p>
+            <p>Your assignment is to restore auxiliary power, investigate the distress signal and establish contact with Earth.</p>
+            <p>Your suit is equipped with an <strong>ARC PULSE</strong> defensive capacitor capable of stunning bio-electric threats.</p>
+            <p>One warning: the station's automated intelligence system, <strong>ECHO</strong>, remains operational.</p>
+            <p class="briefing-warning">Trust no transmission without verification.</p>
+          </div>
+
+          <div class="menu-buttons briefing-actions">
+            <button id="btn-begin-mission" class="retro-btn primary-btn dominant-start-btn">BEGIN MISSION</button>
+            <button id="btn-skip-briefing" class="retro-btn small-btn">SKIP BRIEFING</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- SCREEN 3: Docking Sequence Loading Transition -->
+      <div id="loading-screen" class="modal-screen hidden">
+        <div class="loading-box">
+          <div class="loading-title">DOCKING SEQUENCE // NEXUS-09</div>
+          <div class="loading-sub" id="loading-log">ESTABLISHING HARDLINE UPLINK...</div>
+          <div class="loading-bar-outer">
+            <div class="loading-bar-inner" id="loading-bar-fill"></div>
+          </div>
+          <div class="loading-meta">ORBITAL DECAY: CRITICAL // CREW TELEMETRY: 0 ACTIVE</div>
+        </div>
+      </div>
+
+      <!-- Settings Modal -->
+      <div id="settings-menu" class="modal-screen hidden">
+        <div class="menu-container settings-container">
+          <h2 class="section-title">SYSTEM CONFIGURATION &amp; ACCESSIBILITY</h2>
+          <div class="settings-scroll-area">
+            <div class="setting-row">
+              <label for="setting-difficulty">DIFFICULTY PROTOCOL</label>
+              <select id="setting-difficulty" class="retro-select">
+                <option value="explorer">EXPLORER (FORGIVING)</option>
+                <option value="survivor" selected>SURVIVOR (BALANCED HORROR)</option>
+                <option value="nightmare">NIGHTMARE (HARSH SURVIVAL)</option>
+              </select>
+            </div>
+            <div class="setting-row">
+              <label for="setting-quality">RENDER QUALITY</label>
+              <select id="setting-quality" class="retro-select">
+                <option value="low">LOW (MOBILE / FASTEST)</option>
+                <option value="medium" selected>MEDIUM (BALANCED)</option>
+                <option value="high">HIGH (FULL LIGHTING &amp; SHADOWS)</option>
+              </select>
+            </div>
+            <div class="setting-row">
+              <label for="setting-res-scale">RESOLUTION SCALING</label>
+              <select id="setting-res-scale" class="retro-select">
+                <option value="0.75">75% (PERFORMANCE)</option>
+                <option value="1" selected>100% (NATIVE)</option>
+                <option value="1.25">125% (SHARP)</option>
+                <option value="1.5">150% (ULTRA)</option>
+              </select>
+            </div>
+            <div class="setting-row">
+              <label for="setting-enhanced-visibility">ENHANCED VISIBILITY MODE</label>
+              <input type="checkbox" id="setting-enhanced-visibility" />
+            </div>
+            <div class="setting-row">
+              <label for="setting-shadows">DYNAMIC FLASHLIGHT SHADOWS</label>
+              <input type="checkbox" id="setting-shadows" />
+            </div>
+            <div class="setting-row">
+              <label for="setting-volume">MASTER AUDIO VOLUME</label>
+              <input type="range" id="setting-volume" min="0" max="1" step="0.05" value="0.8" />
+              <span id="setting-volume-val">80%</span>
+            </div>
+            <div class="setting-row">
+              <label for="setting-voice-enabled">ECHO AI VOICE GUIDANCE</label>
+              <input type="checkbox" id="setting-voice-enabled" checked />
+            </div>
+            <div class="setting-row">
+              <label for="setting-voice-volume">ECHO VOICE VOLUME</label>
+              <input type="range" id="setting-voice-volume" min="0" max="1" step="0.05" value="0.85" />
+              <span id="setting-voice-volume-val">85%</span>
+            </div>
+            <div class="setting-row">
+              <label for="setting-subtitles">ECHO SUBTITLES</label>
+              <input type="checkbox" id="setting-subtitles" checked />
+            </div>
+            <div class="setting-row">
+              <label for="setting-sensitivity">MOUSE / OPTIC SENSITIVITY</label>
+              <input type="range" id="setting-sensitivity" min="0.3" max="2.5" step="0.1" value="1.0" />
+              <span id="setting-sensitivity-val">1.0</span>
+            </div>
+            <div class="setting-row">
+              <label for="setting-touch-sensitivity">TOUCH LOOK SENSITIVITY</label>
+              <input type="range" id="setting-touch-sensitivity" min="0.3" max="2.5" step="0.1" value="1.0" />
+              <span id="setting-touch-sensitivity-val">1.0</span>
+            </div>
+            <div class="setting-row">
+              <label for="setting-subtitle-size">SUBTITLE &amp; PROMPT SIZE</label>
+              <select id="setting-subtitle-size" class="retro-select">
+                <option value="small">SMALL</option>
+                <option value="medium" selected>MEDIUM</option>
+                <option value="large">LARGE (ACCESSIBLE)</option>
+              </select>
+            </div>
+            <div class="setting-row">
+              <label for="setting-crt">CRT SCANLINE OVERLAY</label>
+              <input type="checkbox" id="setting-crt" checked />
+            </div>
+            <div class="setting-row">
+              <label for="setting-reduced-effects">REDUCED MOTION &amp; FLICKER</label>
+              <input type="checkbox" id="setting-reduced-effects" />
+            </div>
+            <div class="setting-row">
+              <label for="setting-high-contrast">HIGH-CONTRAST INTERACTION PROMPTS</label>
+              <input type="checkbox" id="setting-high-contrast" />
+            </div>
+            <div class="setting-row">
+              <label for="setting-key-interact">INTERACT KEY (DESKTOP)</label>
+              <select id="setting-key-interact" class="retro-select">
+                <option value="KeyE" selected>E (DEFAULT)</option>
+                <option value="Space">SPACE</option>
+                <option value="KeyR">R</option>
+              </select>
+            </div>
+            <div class="setting-row">
+              <label for="setting-key-flashlight">FLASHLIGHT KEY (DESKTOP)</label>
+              <select id="setting-key-flashlight" class="retro-select">
+                <option value="KeyF" selected>F (DEFAULT)</option>
+                <option value="KeyT">T</option>
+                <option value="KeyL">L</option>
+              </select>
+            </div>
+            <div class="setting-row">
+              <label for="setting-key-arcpulse">ARC PULSE KEY (DESKTOP)</label>
+              <select id="setting-key-arcpulse" class="retro-select">
+                <option value="KeyR" selected>R (DEFAULT)</option>
+                <option value="KeyX">X</option>
+                <option value="Space">SPACE</option>
+              </select>
+            </div>
+          </div>
+          <div class="menu-buttons" style="margin-top: 14px;">
+            <button id="btn-close-settings" class="retro-btn primary-btn">APPLY &amp; RETURN</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Pause Menu -->
+      <div id="pause-menu" class="modal-screen hidden">
+        <div class="menu-container">
+          <h2 class="section-title">UPLINK SUSPENDED</h2>
+          <p class="pause-sub">SUIT TELEMETRY ON STANDBY // PROGRESS SAVED</p>
+          <div class="menu-buttons">
+            <button id="btn-resume-game" class="retro-btn primary-btn">RESUME MISSION</button>
+            <button id="btn-pause-journal" class="retro-btn">MISSION JOURNAL &amp; LOGS</button>
+            <button id="btn-pause-howto" class="retro-btn">CONTROLS &amp; HOW TO PLAY</button>
+            <button id="btn-pause-settings" class="retro-btn">SYSTEM SETTINGS</button>
+            <button id="btn-restart-from-pause" class="retro-btn danger-btn">RESTART MISSION (NEW GAME)</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Game Over Screen -->
+      <div id="gameover-screen" class="modal-screen hidden">
+        <div class="menu-container gameover-container">
+          <div class="station-tag danger-text">TELEMETRY LOST // VITAL SIGNS FLATLINED</div>
+          <h1 class="game-title danger-text">SIGNAL TERMINATED</h1>
+          <p id="gameover-reason" class="game-subtitle">The entity in the dark found you.</p>
+          <div class="menu-buttons">
+            <button id="btn-continue-checkpoint" class="retro-btn primary-btn hidden">RESUME FROM LAST CHECKPOINT</button>
+            <button id="btn-retry-game" class="retro-btn">RESTART MISSION FROM AIRLOCK</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Ending Screen -->
+      <div id="ending-screen" class="modal-screen hidden">
+        <div class="menu-container ending-container">
+          <div class="station-tag" id="ending-tag">TRANSMISSION LOG // FINAL REPORT</div>
+          <h1 class="game-title" id="ending-title">THE LAST SIGNAL</h1>
+          <h3 class="ending-subtitle" id="ending-subtitle">ENDING ACHIEVED</h3>
+          <div class="ending-narrative" id="ending-description"></div>
+          <div class="ending-stats" id="ending-stats"></div>
+          <div class="menu-buttons">
+            <button id="btn-play-again" class="retro-btn primary-btn">PLAY AGAIN (EXPERIENCE OTHER ENDING)</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </body>
+</html>
